@@ -19,11 +19,12 @@ from sagemaker.inputs import CreateModelInput
 from sagemaker import ModelPackage
 
 
-# sess = boto3.Session()
-# sm = sess.client("sagemaker")
-# sagemaker_session = sagemaker.Session(boto_session=sess)
+# Set region explicitly
+region = "us-east-1"  # Change to your desired AWS region
+sess = boto3.Session(region_name=region)
+sagemaker_session = sagemaker.Session(boto_session=sess)
 
-region = "us-east-1"
+
 
 pipeline_name = "linear-linear"  # SageMaker Pipeline name
 
@@ -31,8 +32,7 @@ pipeline_name = "linear-linear"  # SageMaker Pipeline name
 bucket = "mysagemakerprojects"
 prefix = 'linear-learner-pipeline'
 
-# Initialize SageMaker session and role
-sagemaker_session = sagemaker.Session()
+# Initialize role
 role = "sagemakeruserexample"
 
 # Define model package group name
