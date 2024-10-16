@@ -28,10 +28,10 @@ sagemaker_session = sagemaker.Session(boto_session=sess)
 
 pipeline_name = "linear-linear"  # SageMaker Pipeline name
 
+
 # Define bucket, prefix, role
 bucket = "mysagemakerprojects"
 prefix = 'linear-learner-pipeline'
-
 # Initialize role
 role = "sagemakeruserexample"
 
