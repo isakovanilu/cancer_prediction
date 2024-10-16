@@ -23,7 +23,7 @@ from sagemaker import ModelPackage
 # sm = sess.client("sagemaker")
 # sagemaker_session = sagemaker.Session(boto_session=sess)
 
-region = boto3.Session().region_name
+region = "us-east-1"
 
 pipeline_name = "linear-linear"  # SageMaker Pipeline name
 
