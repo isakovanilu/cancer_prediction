@@ -91,7 +91,7 @@ processing_step = ProcessingStep(
 
 # Define the Linear Learner Estimator
 linear_estimator = Estimator(
-    image_uri=sagemaker.image_uris.retrieve('linear-learner', boto3.Session().region_name),
+    image_uri=sagemaker.image_uris.retrieve('linear-learner', region),#boto3.Session().region_name),
     role=role,
     instance_count=1,
     instance_type='ml.m5.large',
