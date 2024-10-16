@@ -19,25 +19,25 @@ from sagemaker.inputs import CreateModelInput
 from sagemaker import ModelPackage
 
 
-sess = boto3.Session()
-sm = sess.client("sagemaker")
-sagemaker_session = sagemaker.Session(boto_session=sess)
+# sess = boto3.Session()
+# sm = sess.client("sagemaker")
+# sagemaker_session = sagemaker.Session(boto_session=sess)
 
 region = boto3.Session().region_name
 
 pipeline_name = "linear-linear"  # SageMaker Pipeline name
 
 # Define bucket, prefix, role
-
-
-
-# SageMaker session
-sagemaker_session = sagemaker.Session()
-
+bucket = "mysagemakerprojects"
+prefix = 'linear-learner-pipeline'
 
 # Initialize SageMaker session and role
 sagemaker_session = sagemaker.Session()
-role = get_execution_role()
+role = "sagemakeruserexample"
+
+# Define model package group name
+MODEL_PACKAGE_GROUP_NAME = "LinearLearnerModelPackageGroup"
+
 
 
 # Define Pipeline Parameters (optional for flexibility)
