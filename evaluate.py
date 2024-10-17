@@ -16,12 +16,14 @@ def load_model(model_path):
     # The model will be saved in the extracted folder in 'model_algo-1'
     # You don't need to "load" it in sklearn format as LinearLearner uses its own binary format
     model_dir = "model_algo-1"
+    print('model_dir',model_dir)
     return model_dir
 
 # Load the validation data
 def load_validation_data(validation_data_path):
     # Load the data into a pandas DataFrame
     data = pd.read_csv(validation_data_path)
+    print('data',data.head(2))
     
     # The first column is treated as the target
     y_val = data.iloc[:, 0]  # First column as target
@@ -51,6 +53,7 @@ def save_evaluation_report(report, output_dir):
 if __name__ == "__main__":
     # Load model and validation data
     model = load_model(model_path)
+    print('loading model')
     X_val, y_val = load_validation_data(validation_data_path)
 
     # Evaluate the model
