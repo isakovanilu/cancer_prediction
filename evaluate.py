@@ -1,6 +1,7 @@
 import os
 import json
 import pandas as pd
+import tarfile
 from sklearn.metrics import classification_report, accuracy_score
 import joblib
 
@@ -8,13 +9,14 @@ import joblib
 model_path = "/opt/ml/processing/model/model.tar.gz"
 validation_data_path = "/opt/ml/processing/output/validation/validation.csv"
 
-# Load the trained model
+# Load the trained model from the tar.gz file
 def load_model(model_path):
-    import tarfile
     with tarfile.open(model_path) as tar:
         tar.extractall(path=".")
-    model = joblib.load("model.joblib")  # Update based on the model type and format
-    return model
+    # The model will be saved in the extracted folder in 'model_algo-1'
+    # You don't need to "load" it in sklearn format as LinearLearner uses its own binary format
+    model_dir = "model_algo-1"
+    return model_dir
 
 # Load the validation data
 def load_validation_data(validation_data_path):
