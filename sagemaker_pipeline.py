@@ -33,7 +33,8 @@ pipeline_name = "linear-linear"  # SageMaker Pipeline name
 bucket = "mysagemakerprojects"
 prefix = 'linear-learner-pipeline'
 # Initialize role
-role = "sagemaker-user-example"
+# role = "sagemaker-user-example"
+role="arn:aws:iam::390403890405:role/sagemaker-user-example"
 # role = get_execution_role()
 
 # Define model package group name
