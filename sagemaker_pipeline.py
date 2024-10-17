@@ -142,7 +142,6 @@ model_register_step = RegisterModel(
 # Define the Pipeline with steps in sequence
 pipeline = Pipeline(
     name="LinearLearnerPipeline",
-    role=role,
     steps=[processing_step, training_step, model_register_step],
     parameters=[
         train_data_param,
