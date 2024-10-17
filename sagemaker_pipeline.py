@@ -8,7 +8,7 @@ from sagemaker.sklearn.processing import SKLearnProcessor
 from sagemaker.workflow.parameters import ParameterString
 from sagemaker.workflow.pipeline import Pipeline
 from sagemaker.workflow.step_collections import RegisterModel
-from sagemaker.workflow.steps import ProcessingStep, TrainingStep
+from sagemaker.workflow.steps import ProcessingStep, TrainingStep, ProcessingStep
 
 # Set region explicitly
 region = "us-east-1"  # Change to your desired AWS region
@@ -19,8 +19,6 @@ sagemaker_session = sagemaker.Session(boto_session=sess)
 bucket = "mysagemakerprojects"
 prefix = "linear-learner-pipeline"
 role = "arn:aws:iam::390403890405:role/sagemaker-user-example"
-# Alternatively, use get_execution_role() if appropriate
-# role = get_execution_role()
 
 # Define model package group name
 MODEL_PACKAGE_GROUP_NAME = "LinearLearnerModelPackageGroup"
@@ -111,6 +109,40 @@ training_step = TrainingStep(
     },
 )
 
+# Define the evaluation step
+evaluation_processor = SKLearnProcessor(
+    framework_version="1.0-1",
+    role=role,
+    instance_type="ml.m5.large",
+    instance_count=1,
+    sagemaker_session=sagemaker_session,
+)
+
+evaluation_step = ProcessingStep(
+    name="EvaluateModelStep",
+    processor=evaluation_processor,
+    inputs=[
+        ProcessingInput(
+            source=training_step.properties.ModelArtifacts.S3ModelArtifacts,
+            destination="/opt/ml/processing/model",
+        ),
+        ProcessingInput(
+            source=processing_step.properties.ProcessingOutputConfig.Outputs[
+                "validation_data"
+            ].S3Output.S3Uri,
+            destination="/opt/ml/processing/output/validation",
+        ),
+    ],
+    outputs=[
+        ProcessingOutput(
+            source="/opt/ml/processing/output/evaluation",
+            destination=f"s3://{bucket}/{prefix}/evaluation",
+            output_name="evaluation_report",
+        )
+    ],
+    code="evaluate.py",  # Ensure this script is available in your directory
+)
+
 # Define the Model Registration Step
 model_register_step = RegisterModel(
     name="RegisterLinearLearnerModel",
@@ -126,7 +158,7 @@ model_register_step = RegisterModel(
 # Define the Pipeline
 pipeline = Pipeline(
     name="LinearLearnerPipeline",
-    steps=[processing_step, training_step, model_register_step],
+    steps=[processing_step, training_step, evaluation_step, model_register_step],
     parameters=[
         train_data_param,
         output_prefix_param,
