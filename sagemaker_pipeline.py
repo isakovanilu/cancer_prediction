@@ -85,7 +85,7 @@ processing_step = ProcessingStep(
 
 # Define the XGBoost Estimator
 xgboost_estimator = Estimator(
-    image_uri=sagemaker.image_uris.retrieve("xgboost", boto3.Session().region_name, version="1.3-1"),  # XGBoost version
+    image_uri=sagemaker.image_uris.retrieve("xgboost", region, version="1.3-1"),  # XGBoost version
     role=role,
     instance_count=1,
     instance_type='ml.m5.xlarge',
