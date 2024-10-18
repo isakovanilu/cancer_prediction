@@ -1,4 +1,3 @@
-%%writefile evaluation.py
 
 import os
 import json
