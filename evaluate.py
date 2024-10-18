@@ -1,56 +1,66 @@
 import os
 import json
 import pandas as pd
-from sagemaker.serializers import CSVSerializer
-from sagemaker.deserializers import JSONDeserializer
-from sagemaker.predictor import Predictor
 from sklearn.metrics import classification_report, accuracy_score
+import joblib
 
-# Path to validation data
+# Paths where the model and validation data will be located
+model_path = "/opt/ml/processing/model/model.tar.gz"
 validation_data_path = "/opt/ml/processing/output/validation/validation.csv"
 
-# Load validation data
-validation_data = pd.read_csv(validation_data_path)
+# Load the trained model
+def load_model(model_path):
+    import tarfile
+    with tarfile.open(model_path) as tar:
+        tar.extractall(path=".")
+    model = joblib.load("model.joblib")  # Update based on the model type and format
+    return model
 
-# Separate features and target
-X_val = validation_data.iloc[:, 1:]  # All columns except first are features
-y_val = validation_data.iloc[:, 0]   # First column is target
+# Load the validation data
+def load_validation_data(validation_data_path):
+    # Load the data into a pandas DataFrame
+    data = pd.read_csv(validation_data_path)
+    
+    # The first column is treated as the target
+    y_val = data.iloc[:, 0]  # First column as target
+    X_val = data.iloc[:, 1:]  # All other columns as features
+    
+    return X_val, y_val
 
-# Define the endpoint name for your model
-# Make sure you have a deployed model in SageMaker and update the endpoint name
-endpoint_name = "linear-learner-endpoint"
+# Evaluate the model
+def evaluate_model(model, X_val, y_val):
+    # Predict using the trained model
+    y_pred = model.predict(X_val)
 
-# Set up the SageMaker Predictor
-predictor = Predictor(
-    endpoint_name=endpoint_name,
-    serializer=CSVSerializer(),       # Serialize input data in CSV format
-    deserializer=JSONDeserializer(),  # Deserialize output from JSON
-)
+    # Calculate accuracy
+    accuracy = accuracy_score(y_val, y_pred)
 
-# Prepare data for prediction
-X_val_csv = X_val.to_csv(header=False, index=False).encode("utf-8")
+    # Generate classification report
+    report = classification_report(y_val, y_pred, output_dict=True)
 
-# Perform inference (predictions)
-predictions = predictor.predict(X_val_csv)
+    return accuracy, report
 
-# Extract predicted labels
-predicted_labels = [float(pred['predicted_label']) for pred in predictions['predictions']]
+# Save the evaluation report to a JSON file
+def save_evaluation_report(report, output_dir):
+    evaluation_path = os.path.join(output_dir, "evaluation.json")
+    with open(evaluation_path, "w") as f:
+        json.dump(report, f)
 
-# Evaluate the predictions against the actual labels
-accuracy = accuracy_score(y_val, predicted_labels)
-report = classification_report(y_val, predicted_labels, output_dict=True)
+if __name__ == "__main__":
+    # Load model and validation data
+    model = load_model(model_path)
+    X_val, y_val = load_validation_data(validation_data_path)
 
-# Save the evaluation results
-evaluation_output_dir = "/opt/ml/processing/evaluation"
-os.makedirs(evaluation_output_dir, exist_ok=True)
+    # Evaluate the model
+    accuracy, report = evaluate_model(model, X_val, y_val)
 
-# Save accuracy score
-accuracy_report = {"accuracy": accuracy}
-with open(os.path.join(evaluation_output_dir, "accuracy.json"), "w") as f:
-    json.dump(accuracy_report, f)
+    # Save evaluation metrics
+    evaluation_output_dir = "/opt/ml/processing/evaluation"
+    os.makedirs(evaluation_output_dir, exist_ok=True)
 
-# Save detailed classification report
-with open(os.path.join(evaluation_output_dir, "classification_report.json"), "w") as f:
-    json.dump(report, f)
+    # Save accuracy
+    accuracy_report = {"accuracy": accuracy}
+    save_evaluation_report(accuracy_report, evaluation_output_dir)
 
-print("Evaluation complete. Results saved to:", evaluation_output_dir)
+    # Save detailed classification report
+    save_evaluation_report(report, evaluation_output_dir)
