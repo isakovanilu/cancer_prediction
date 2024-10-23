@@ -80,7 +80,7 @@ processing_step = ProcessingStep(
             output_name='validation_data'  # This is the name of the validation output
         )
     ],
-    code="preprocessing.py"  # Ensure this script is in your working directory
+    code="scripts/preprocessing.py"  # Ensure this script is in your working directory
 )
 
 # Define the XGBoost Estimator
@@ -156,7 +156,7 @@ evaluation_step = ProcessingStep(
             output_name='evaluation_report'
         )
     ],
-    code="evaluation.py"  # The evaluation script
+    code="scripts/evaluation.py"  # The evaluation script
 )
 
 # Define Model Registration Step
