@@ -31,8 +31,7 @@ jobs:
       # Step 3: Install dependencies
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
-          pip install boto3 sagemaker
+          pip install -r scripts/requirements.txt
 
       # Step 4: Run Linter (optional)
       - name: Lint Python code
@@ -43,4 +42,4 @@ jobs:
       # Step 5: Execute SageMaker pipeline script
       - name: Run SageMaker Pipeline
         run: |
-          python sagemaker_pipeline.py
+          python scripts/sagemaker_pipeline.py
