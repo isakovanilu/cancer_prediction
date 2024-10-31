@@ -2,42 +2,99 @@ provider "aws" {
   region = "us-east-1"
 }
 
+variable "project_name" {
+  description = "Name of the project"
+  default     = "sagemaker-cancer-prediction"
+}
+
 # S3 Bucket for storing model artifacts
 resource "aws_s3_bucket" "model_artifacts" {
   bucket = "${var.project_name}-model-artifacts"
   acl    = "private"
 }
 
-# IAM role for EventBridge to trigger Lambda
+# Lambda Function for Cancer Prediction Model
+resource "aws_lambda_function" "my_lambda" {
+  function_name    = "cancer-pred-ml-model-lambda-prod"
+  filename         = "lambda_gateway.zip"
+  handler          = "lambda_gateway.lambda_handler"
+  runtime          = "python3.11"
+  role             = aws_iam_role.lambda_exec_role.arn
+  memory_size      = 512
+  timeout          = 10
+}
+
+# API Gateway Setup for Lambda Function
+resource "aws_api_gateway_rest_api" "my_api" {
+  name        = "ml-model-api"
+  description = "API Gateway for my Lambda function"
+}
+
+resource "aws_api_gateway_resource" "my_resource" {
+  rest_api_id = aws_api_gateway_rest_api.my_api.id
+  parent_id   = aws_api_gateway_rest_api.my_api.root_resource_id
+  path_part   = "api-ml-model"
+}
+
+resource "aws_api_gateway_method" "my_method" {
+  rest_api_id   = aws_api_gateway_rest_api.my_api.id
+  resource_id   = aws_api_gateway_resource.my_resource.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "lambda_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.my_api.id
+  resource_id             = aws_api_gateway_resource.my_resource.id
+  http_method             = aws_api_gateway_method.my_method.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.my_lambda.invoke_arn
+}
+
+resource "aws_lambda_permission" "api_gateway_invoke" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.my_lambda.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.my_api.execution_arn}/*/*"
+}
+
+resource "aws_api_gateway_deployment" "my_deployment" {
+  rest_api_id = aws_api_gateway_rest_api.my_api.id
+  stage_name  = "prod"
+  depends_on  = [aws_api_gateway_integration.lambda_integration]
+}
+
+# IAM Roles and Policies
 resource "aws_iam_role" "eventbridge_lambda_role" {
   name = "${var.project_name}_eventbridge_lambda_role"
-
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
     Statement: [
       {
         Effect    = "Allow",
-        Principal = {
-          Service = "events.amazonaws.com"
-        },
+        Principal = { Service = "events.amazonaws.com" },
         Action    = "sts:AssumeRole"
       }
     ]
   })
 }
 
-# IAM policy to allow EventBridge to trigger Lambda
 resource "aws_iam_role_policy" "eventbridge_lambda_policy" {
   name = "${var.project_name}_eventbridge_lambda_policy"
   role = aws_iam_role.eventbridge_lambda_role.id
-
   policy = jsonencode({
     Version = "2012-10-17",
     Statement: [
       {
         Effect: "Allow",
         Action: [
-          "lambda:InvokeFunction"
+          "lambda:InvokeFunction",
+          "sagemaker:CreateEndpoint",
+          "sagemaker:DescribeModel",
+          "sagemaker:DescribeEndpoint",
+          "sagemaker:UpdateEndpoint"
         ],
         Resource: "*"
       }
@@ -45,61 +102,62 @@ resource "aws_iam_role_policy" "eventbridge_lambda_policy" {
   })
 }
 
-# Lambda IAM Role
 resource "aws_iam_role" "lambda_exec_role" {
   name = "${var.project_name}_lambda_exec_role"
-  
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
-    Statement = [
+    Statement: [
       {
         Action    = "sts:AssumeRole",
         Effect    = "Allow",
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
+        Principal = { Service = "lambda.amazonaws.com" }
       }
     ]
   })
 }
 
-# Update the Lambda IAM Role to allow invoking other Lambda functions
 resource "aws_iam_role_policy" "lambda_policy" {
   name   = "${var.project_name}_lambda_policy"
   role   = aws_iam_role.lambda_exec_role.id
   policy = jsonencode({
     Version = "2012-10-17",
-    Statement = [
+    Statement: [
       {
-        Effect   = "Allow",
-        Action   = [
+        Effect: "Allow",
+        Action: [
           "sagemaker:*",
           "s3:*",
           "logs:*",
           "lambda:InvokeFunction",
-          "iam:PassRole"
+          "iam:PassRole",
+          "events:PutEvents"
         ],
         Resource = [
           "*",
           aws_lambda_function.github_trigger_lambda.arn,
-        "arn:aws:iam::390403890405:role/sagemaker-user-example"
+          "arn:aws:iam::390403890405:role/sagemaker-user-example"
         ]
       }
     ]
   })
 }
 
-# Lambda Function to deploy the SageMaker model after approval
+# Lambda Functions
 resource "aws_lambda_function" "model_deployment_lambda" {
   function_name = "${var.project_name}_ModelDeploymentLambda"
   handler       = "lambda_function.lambda_handler"
   role          = aws_iam_role.lambda_exec_role.arn
   runtime       = "python3.8"
   s3_bucket     = "mysagemakerprojects"  
-  s3_key        = "deployment-lambda.zip"  
+  s3_key        = "deployment-lambda.zip"
+  environment {
+    variables = {
+      MODEL_GROUP_ARN           = "arn:aws:sagemaker:us-east-1:390403890405:model-package-group/PipelineModelPackageGroup"
+      SAGEMAKER_EXECUTION_ROLE_ARN = "arn:aws:iam::390403890405:role/sagemaker-user-example"
+    }
+  }
 }
 
-# Lambda Function to trigger GitHub Actions
 resource "aws_lambda_function" "github_trigger_lambda" {
   function_name = "${var.project_name}_GitHubTriggerLambda"
   handler       = "lambda_function.lambda_handler"
@@ -109,9 +167,9 @@ resource "aws_lambda_function" "github_trigger_lambda" {
   s3_key        = "github-trigger-lambda.zip"
   environment {
     variables = {
-      GITHUB_REPO_OWNER  = "isakovanilu"
-      GITHUB_REPO_NAME   = "sagemaker_cancer_prediction"
-      GITHUB_WORKFLOW    = "sagemaker_pipeline.yml"
+      GITHUB_REPO_OWNER = "isakovanilu"
+      GITHUB_REPO_NAME  = "sagemaker_cancer_prediction"
+      GITHUB_WORKFLOW   = "sagemaker_pipeline.yml"
     }
   }
 }
@@ -122,37 +180,26 @@ resource "aws_sagemaker_model_package_group" "model_package_group" {
   model_package_group_description = "Group for all versions of my machine learning model"
 }
 
-# Retrieve GitHub token from AWS Secrets Manager
-data "aws_secretsmanager_secret" "github_token" {
-  name = "GitHubAccessToken"
-}
-
-data "aws_secretsmanager_secret_version" "github_token_value" {
-  secret_id = data.aws_secretsmanager_secret.github_token.id
-}
-
-# EventBridge rule to trigger the Lambda when model package is approved
+# EventBridge Rule and Target for Model Approval Trigger
 resource "aws_cloudwatch_event_rule" "model_approval_rule" {
   name        = "${var.project_name}_ModelApprovalRule"
   description = "Trigger Lambda on SageMaker Model Package approval"
   event_pattern = jsonencode({
-    "source"       : ["aws.sagemaker"],
-    "detail-type"  : ["SageMaker Model Package State Change"],
-    "detail"       : {
+    "source": ["aws.sagemaker"],
+    "detail-type": ["SageMaker Model Package State Change"],
+    "detail": {
       "ModelPackageGroupName": [aws_sagemaker_model_package_group.model_package_group.model_package_group_name],
-      "CurrentStatus"        : ["Approved"]
+      "CurrentStatus": ["Approved"]
     }
   })
 }
 
-# EventBridge Target to trigger the first Lambda function
 resource "aws_cloudwatch_event_target" "deployment_lambda_target" {
   rule      = aws_cloudwatch_event_rule.model_approval_rule.name
   target_id = "TriggerModelDeploymentLambda"
   arn       = aws_lambda_function.model_deployment_lambda.arn
 }
 
-# Permission for EventBridge to invoke the first Lambda
 resource "aws_lambda_permission" "allow_eventbridge_to_invoke_deployment_lambda" {
   statement_id  = "AllowEventBridgeInvoke"
   action        = "lambda:InvokeFunction"
@@ -161,32 +208,8 @@ resource "aws_lambda_permission" "allow_eventbridge_to_invoke_deployment_lambda"
   source_arn    = aws_cloudwatch_event_rule.model_approval_rule.arn
 }
 
-# Lambda trigger for the second Lambda function after the first one succeeds
-resource "aws_lambda_permission" "allow_deployment_lambda_to_invoke_github_lambda" {
-  statement_id  = "AllowDeploymentLambdaToInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.github_trigger_lambda.function_name
-  principal     = "lambda.amazonaws.com"
-}
-
-# Invoke the second Lambda after the first completes (through function chaining)
-resource "aws_lambda_function_event_invoke_config" "deployment_to_github_trigger" {
-  function_name = aws_lambda_function.model_deployment_lambda.function_name
-
-  destination_config {
-    on_success {
-      destination = aws_lambda_function.github_trigger_lambda.arn
-    }
-  }
-}
-
-# GitHub Actions URL for manual trigger (optional)
+# Output GitHub Actions URL
 output "github_actions_url" {
   value       = "https://github.com/isakovanilu/sagemaker_cancer_prediction/actions"
   description = "GitHub Actions workflow URL to trigger the pipeline."
-}
-
-variable "project_name" {
-  description = "Name of the project"
-  default     = "sagemaker-cancer-prediction"
 }
