@@ -2,11 +2,6 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# import {
-#   to = aws_lambda_function.cancer-pred-ml-model-lambda
-#   id = "cancer-pred-ml-model-lambda-import"
-# }
-
 variable "project_name" {
   description = "Name of the project"
   default     = "sagemaker-cancer-prediction"
